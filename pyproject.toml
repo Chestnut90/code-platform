@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "code-platform"
+version = "0.1.0"
+description = "Numble Challenge"
+authors = ["chestnut90 <cowzon90@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "code_platform"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+django = "^4.1.7"
+djangorestframework = "^3.14.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
