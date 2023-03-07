@@ -31,7 +31,7 @@ class Category(AutoTimeTrackingModelBase):
         max_length=50,
         unique=True,
         null=True,
-        default=CATEGORY_DEFAULT_VALUE,
+        # default=CATEGORY_DEFAULT_VALUE,
     )
 
     def __str__(self) -> str:
@@ -53,9 +53,10 @@ class Problem(AutoTimeTrackingModelBase):
     # using bfs, dfs, stack...
     category = models.ForeignKey(
         "Category",
-        on_delete=models.SET_DEFAULT,
+        on_delete=models.SET_NULL,
         related_name="problems",
-        default=CATEGORY_DEFAULT_VALUE,  # TODO : error when category deleted.
+        null=True,
+        # default=CATEGORY_DEFAULT_VALUE,  # TODO : error when category deleted.
     )
 
     commentary = models.OneToOneField(
