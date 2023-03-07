@@ -73,7 +73,11 @@ class Problem(AutoTimeTrackingModelBase):
     owner = models.ForeignKey(
         User,  # default auth user model.
         on_delete=models.CASCADE,
+        related_name="own_problems",
     )
+
+    def submitted_count(self):
+        return self.submissions.all().count()
 
     def __str__(self) -> str:
         return f"{self.name}"
