@@ -42,7 +42,10 @@ _THIRD_PARTY_APPS = [
     "rest_framework",
 ]
 
-_CUSTOM_APPS = ["problems.apps.ProblemsConfig"]
+_CUSTOM_APPS = [
+    "problems.apps.ProblemsConfig",
+    "solutions.apps.SolutionsConfig",
+]
 
 INSTALLED_APPS = _DEFAULT_APPS + _THIRD_PARTY_APPS + _CUSTOM_APPS
 
