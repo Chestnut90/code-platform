@@ -5,6 +5,8 @@ from .models import (
     Category,
     Answer,
     Commentary,
+    Submission,
+    Solution,
 )
 
 
@@ -25,4 +27,14 @@ class AnswerAdmin(admin.ModelAdmin):
 
 @admin.register(Commentary)
 class CommentaryModelAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(Submission)
+class SubmissionAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(Solution)
+class SolutionAdmin(admin.ModelAdmin):
     pass
