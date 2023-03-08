@@ -1,12 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, PermissionDenied
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, SAFE_METHODS
 from rest_framework.pagination import PageNumberPagination
 
 from rest_framework.generics import ListCreateAPIView
 
-from .serializers import ProblemListSerializer
+
+from .serializers import ProblemListSerializer, ProblemCreateSerializer
 from .models import Problem
 
 
@@ -21,3 +22,13 @@ class ProblemsAPI(ListCreateAPIView):
     pagination_class = (
         PageNumberPagination  # TODO : receive page and page_size, customize
     )
+
+    def get_serializer_class(self):
+        """
+        Choose suitable serializer for request method.
+        override from GenericAPIView.
+        """
+
+        if self.request.method in SAFE_METHODS:
+            return ProblemListSerializer
+        return ProblemCreateSerializer
