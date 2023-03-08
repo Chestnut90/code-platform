@@ -1,30 +1,31 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
-    BasePermission,
+    IsAuthenticated,
     SAFE_METHODS,
 )
 from rest_framework.pagination import PageNumberPagination
-
 from rest_framework.generics import (
     ListCreateAPIView,
+    RetrieveAPIView,
     RetrieveUpdateDestroyAPIView,
 )
 
-
 from .serializers import (
     ProblemListSerializer,
-    ProblemCreateSerializer,
+    ProblemCreateUpdateSerializer,
     ProblemDetailSerializer,
+    AnswerSerializer,
+    CommentarySerializer,
+    ProblemCommentarySerializer,
 )
 from .models import Problem
+from .permissions import IsOwnerOrReadOnly, IsOwnerOrSolvedUserReadOnly
 
 
 class ProblemsAPI(ListCreateAPIView):
     """
-    Problems GET(list)
+    Problems list and create api,
+    support get and post
     """
 
     queryset = Problem.objects.all()
@@ -42,7 +43,7 @@ class ProblemsAPI(ListCreateAPIView):
 
         if self.request.method in SAFE_METHODS:
             return ProblemListSerializer
-        return ProblemCreateSerializer
+        return ProblemCreateUpdateSerializer
 
 
 class ProblemAPI(RetrieveUpdateDestroyAPIView):
@@ -50,18 +51,33 @@ class ProblemAPI(RetrieveUpdateDestroyAPIView):
     Problem API
     """
 
-    class IsOwner(BasePermission):
-        """Check permission of model which hold 'owner' field"""
+    queryset = Problem.objects.all()
+    serializer_class = None  # use get_serializer_class instead
+    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
-        def has_object_permission(self, request, view, obj):
-            """
-            Check request auth with object owner attribute,
-            when method is not UN_SAFE_METHOD(?)
-            """
-            assert hasattr(obj, "owner"), "object does not have 'owner' attribute"
+    def get_serializer_class(self):
+        if self.request.method in SAFE_METHODS:
+            return ProblemDetailSerializer
+        return ProblemCreateUpdateSerializer
 
-            return bool(request.method in SAFE_METHODS or request.user is obj.owner)
+
+class ProblemAnswerAPI(RetrieveAPIView):
+    """Problem Answer retrieve api for only user who solved problem."""
 
     queryset = Problem.objects.all()
-    serializer_class = ProblemDetailSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsOwner]
+    serializer_class = AnswerSerializer  # TODO : check, how to works?
+    permission_classes = [
+        IsAuthenticated,
+        IsOwnerOrSolvedUserReadOnly,
+    ]  # TODO : IsOwnerOrSolvedUserReadOnly error message
+
+
+class ProblemCommentaryAPI(RetrieveAPIView):
+    """Problem Commentary retrieve api for only user who solved problem."""
+
+    queryset = Problem.objects.all()
+    serializer_class = ProblemCommentarySerializer
+    permission_classes = [
+        IsAuthenticated,
+        IsOwnerOrSolvedUserReadOnly,
+    ]

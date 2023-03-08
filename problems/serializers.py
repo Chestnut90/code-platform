@@ -35,6 +35,19 @@ class CommentarySerializer(ModelSerializer):
         fields = "__all__"
 
 
+# TODO : duplicated
+class ProblemCommentarySerializer(ModelSerializer):
+
+    comment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Problem
+        fields = ("comment",)
+
+    def get_comment(self, obj):
+        return CommentarySerializer(obj.commentary).data
+
+
 class ProblemListSerializer(ModelSerializer):
 
     category = serializers.StringRelatedField(
@@ -54,7 +67,7 @@ class ProblemListSerializer(ModelSerializer):
         )
 
 
-class ProblemCreateSerializer(ModelSerializer):
+class ProblemCreateUpdateSerializer(ModelSerializer):
     """
     Problem create serializer
     """
@@ -83,23 +96,21 @@ class ProblemCreateSerializer(ModelSerializer):
         model = Problem
         fields = "__all__"
 
-    def is_valid(self, *, raise_exception=False):
-        return super().is_valid(raise_exception=raise_exception)
-
     def validate_level(self, value):
         # TODO : delete when level field has check constraints
         if isinstance(value, int) and value in range(1, 6):
             return value
         raise ValidationError("level must be one of [1, 2, 3, 4, 5].")
 
+    submodels = [
+        ("answer", AnswerCreateSerializer),
+        ("commentary", CommentaryCreateSerializer),
+    ]
+
     def create(self, validated_data):
-        # add answer, commnetary fk
-        keys = ["answer", "commentary"]
-        serializer_classes = [
-            self.AnswerCreateSerializer,
-            self.CommentaryCreateSerializer,
-        ]
-        for key, serializer_class in zip(keys, serializer_classes):
+
+        # save submodels
+        for key, serializer_class in self.submodels:
             serializer = serializer_class(data=validated_data.pop(key))
             serializer.is_valid(raise_exception=True)
             validated_data[key] = serializer.save()
@@ -109,14 +120,29 @@ class ProblemCreateSerializer(ModelSerializer):
 
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        # save submodels
+        for key, serializer_class in self.submodels:
+            submodel_instance = getattr(instance, key)
+            serializer = serializer_class(
+                submodel_instance, data=validated_data.pop(key)
+            )
+            serializer.is_valid(raise_exception=True)
+            validated_data[key] = serializer.save()
+
+        return super().update(instance, validated_data)
+
 
 class ProblemDetailSerializer(ModelSerializer):
 
-    category = CategorySerializer(read_only=True)
-    owner = UserSerializer(read_only=True)
-    commentary = CommentarySerializer(read_only=True)
-    answer = AnswerSerializer(read_only=True)
+    category = serializers.StringRelatedField(read_only=True)
+    owner = serializers.StringRelatedField(read_only=True)
+
+    # TODO : show link for commentary, answer?.
 
     class Meta:
         model = Problem
-        fields = "__all__"
+        exclude = (
+            "commentary",
+            "answer",
+        )
