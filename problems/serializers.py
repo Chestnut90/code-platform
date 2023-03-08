@@ -37,7 +37,9 @@ class CommentarySerializer(ModelSerializer):
 
 class ProblemListSerializer(ModelSerializer):
 
-    category = CategorySerializer(read_only=True)
+    category = serializers.StringRelatedField(
+        read_only=True
+    )  # CategorySerializer(read_only=True)
 
     # TODO : sumitted field
     # TODO : correct solutions field
@@ -73,7 +75,6 @@ class ProblemCreateSerializer(ModelSerializer):
 
     owner = UserSerializer(read_only=True)  # TODO : using request.user auth.
     # TODO : customize, category pk error message
-    # TODO : show category string when get method.
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     commentary = CommentarySerializer()
     answer = AnswerSerializer()
@@ -107,3 +108,15 @@ class ProblemCreateSerializer(ModelSerializer):
         validated_data["owner"] = self.context["request"].user
 
         return super().create(validated_data)
+
+
+class ProblemDetailSerializer(ModelSerializer):
+
+    category = CategorySerializer(read_only=True)
+    owner = UserSerializer(read_only=True)
+    commentary = CommentarySerializer(read_only=True)
+    answer = AnswerSerializer(read_only=True)
+
+    class Meta:
+        model = Problem
+        fields = "__all__"
