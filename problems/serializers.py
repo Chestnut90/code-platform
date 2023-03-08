@@ -69,7 +69,7 @@ class ProblemListSerializer(ModelSerializer):
 
 class ProblemCreateUpdateSerializer(ModelSerializer):
     """
-    Problem create serializer
+    Problem create and update serializer
     """
 
     class AnswerCreateSerializer(ModelSerializer):

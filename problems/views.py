@@ -60,6 +60,12 @@ class ProblemAPI(RetrieveUpdateDestroyAPIView):
             return ProblemDetailSerializer
         return ProblemCreateUpdateSerializer
 
+    def perform_destroy(self, instance):
+        submodels = [instance.answer, instance.commentary]
+        super().perform_destroy(instance)
+        for submodel in submodels:
+            submodel.delete()
+
 
 class ProblemAnswerAPI(RetrieveAPIView):
     """Problem Answer retrieve api for only user who solved problem."""
