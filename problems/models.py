@@ -1,15 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-from .models_abstract import AutoTimeTrackingModelBase
+from .models_abstract import (
+    AutoTimeTrackingModelBase,
+    AnswerModelBase,
+    ScoreModelBase,
+)
 
-CATEGORY_DEFAULT_VALUE = "None"
 
-
-class Answer(AutoTimeTrackingModelBase):
+class Answer(AnswerModelBase):
     """Problem answer model, submit by problem owner"""
-
-    answer = models.TextField()
 
     def __str__(self) -> str:
         return f"answer of {self.problem}" if hasattr(self, "problem") else "deleted"
@@ -25,13 +25,11 @@ class Commentary(AutoTimeTrackingModelBase):
 
 
 class Category(AutoTimeTrackingModelBase):
-    """problem category model definition"""
+    """Category of Problem model definition"""
 
     category = models.CharField(
         max_length=50,
         unique=True,
-        null=True,
-        # default=CATEGORY_DEFAULT_VALUE,
     )
 
     def __str__(self) -> str:
@@ -39,38 +37,42 @@ class Category(AutoTimeTrackingModelBase):
 
 
 class Problem(AutoTimeTrackingModelBase):
-
     """Problem model definition"""
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(level__gte=1, level__lte=5), name="level_range"
+            ),
+        ]
 
     # name of this problem.
     name = models.CharField(max_length=50)
-    # check 1 to 5
+    # problem level (1 to 5)
     level = models.PositiveSmallIntegerField()
     # string about problem
     description = models.TextField()
-
-    # TODO : use choice?
+    # TODO : error when category deleted.
     # using bfs, dfs, stack...
     category = models.ForeignKey(
         "Category",
         on_delete=models.SET_NULL,
-        related_name="problems",
         null=True,
-        # default=CATEGORY_DEFAULT_VALUE,  # TODO : error when category deleted.
+        related_name="problems",
     )
-
+    # commentary relation
     commentary = models.OneToOneField(
         "Commentary",
         on_delete=models.PROTECT,
         related_name="problem",
     )
+    # answer relation
     answer = models.OneToOneField(
         "Answer",
         on_delete=models.PROTECT,
         related_name="problem",
     )
-
-    # owner of problem
+    # owner relation
     owner = models.ForeignKey(
         User,  # default auth user model.
         on_delete=models.CASCADE,
@@ -84,13 +86,23 @@ class Problem(AutoTimeTrackingModelBase):
         return f"{self.name}"
 
 
-class Submission(AutoTimeTrackingModelBase):
+class Submission(
+    AutoTimeTrackingModelBase,
+    ScoreModelBase,
+):
     """
     Submission Model definition,
     (user, problem) : submission => (1 : 1)
     """
 
-    # TODO : unique(user, problem)
+    class Meta(ScoreModelBase.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "problem"],
+                name="unique_user_problem",
+            ),
+            ScoreModelBase.get_score_constraints("submission"),
+        ]
 
     # user who submit
     user = models.ForeignKey(
@@ -98,27 +110,30 @@ class Submission(AutoTimeTrackingModelBase):
         on_delete=models.CASCADE,
         related_name="submissions",
     )
-
+    # which problem
     problem = models.ForeignKey(
         "problems.Problem",
         on_delete=models.CASCADE,
         related_name="submissions",
     )
 
-    score = models.PositiveSmallIntegerField()  # 0 or 100
-
     def __str__(self) -> str:
-        return f"{self.user} submit {self.problem}"
+        return f"{self.user}'s submission to '{self.problem}'"
 
 
-class Solution(AutoTimeTrackingModelBase):
+class Solution(
+    AnswerModelBase,
+    ScoreModelBase,
+):
     """
     Solution model for user solution to be submit on problem,
     Submission : Solution (1:N)
     """
 
-    score = models.PositiveSmallIntegerField()  # 0 or 100
-    solution = models.TextField()
+    class Meta:
+        constraints = [
+            ScoreModelBase.get_score_constraints("solution"),
+        ]
 
     submission = models.ForeignKey(
         "Submission",
