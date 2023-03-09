@@ -7,4 +7,6 @@ urlpatterns = [
     path("<int:pk>", views.ProblemAPI.as_view()),
     path("<int:pk>/answer", views.ProblemAnswerAPI.as_view()),
     path("<int:pk>/commentary", views.ProblemCommentaryAPI.as_view()),
+    path("<int:pk>/submission", views.ProblemSubmissionAPI.as_view()),
+    path("<int:pk>/solutions", views.ProblemSolutionAPI.as_view()),
 ]
