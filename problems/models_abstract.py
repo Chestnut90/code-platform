@@ -32,7 +32,7 @@ class ScoreModelBase(models.Model):
         #     ),
         # ]
 
-    score = models.PositiveSmallIntegerField()
+    score = models.PositiveSmallIntegerField(default=0)
 
     @staticmethod
     def get_score_constraints(table: str):
