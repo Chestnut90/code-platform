@@ -138,6 +138,8 @@ class ProblemDetailSerializer(ModelSerializer):
     category = serializers.StringRelatedField(read_only=True)
     owner = serializers.StringRelatedField(read_only=True)
 
+    submitted_count = serializers.SerializerMethodField()
+    solved_count = serializers.SerializerMethodField()
     # TODO : show link for commentary, answer?.
 
     class Meta:
@@ -146,3 +148,9 @@ class ProblemDetailSerializer(ModelSerializer):
             "commentary",
             "answer",
         )
+
+    def get_submitted_count(self, obj):
+        return obj.submitted_count()
+
+    def get_solved_count(self, obj):
+        return obj.solved_count()

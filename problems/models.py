@@ -82,6 +82,9 @@ class Problem(AutoTimeTrackingModelBase):
     def submitted_count(self):
         return self.submissions.all().count()
 
+    def solved_count(self):
+        return self.submissions.filter(score=100).count()
+
     def __str__(self) -> str:
         return f"{self.name}"
 
