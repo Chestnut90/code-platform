@@ -9,4 +9,5 @@ urlpatterns = [
     path("<int:pk>/commentary", views.ProblemCommentaryAPI.as_view()),
     path("<int:pk>/submission", views.ProblemSubmissionAPI.as_view()),
     path("<int:pk>/solutions", views.ProblemSolutionAPI.as_view()),
+    path("recommendation", views.RecommendProblemAPI.as_view()),
 ]

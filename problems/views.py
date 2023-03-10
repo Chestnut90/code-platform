@@ -149,6 +149,7 @@ class ProblemSolutionAPI(ListCreateAPIView):
 
         def create(self, validated_data):
             # TODO : refactoring to before and after creation.
+            # TODO : atomic transaction
 
             # check submission existed
             problem_id = self.context["view"].kwargs["pk"]
@@ -200,3 +201,76 @@ class ProblemSolutionAPI(ListCreateAPIView):
         if self.request.method in SAFE_METHODS:
             return self.SolutionSerializer
         return self.SolutionCreateSerializer
+
+
+### recommendation api
+from django.db.models import QuerySet, Min, Count
+
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, ListAPIView
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.status import HTTP_204_NO_CONTENT
+
+from .serializers import ProblemDetailSerializer
+from .models import Problem
+
+
+class RecommendProblemAPI(RetrieveAPIView):
+    """
+    Recommend Problem api for user,
+    """
+
+    class NotMineProblemsFilter(BaseFilterBackend):
+        """
+        For problem model filter to exclude mines
+        """
+
+        def filter_queryset(self, request, queryset, view):
+            return queryset.exclude(onwer=request.user)
+
+    class NotSolvedProblemsFilter(BaseFilterBackend):
+        def filter_queryset(self, request, queryset, view):
+
+            query = {
+                "submissions__user": request.user,
+                "submissions__score": 100,
+            }
+            return queryset.exclude(**query)
+
+    class MinLevelProblemFilter(BaseFilterBackend):
+        def filter_queryset(self, request, queryset, view):
+            # TODO : error handling
+            min = queryset.aggregate(Min("level"))["level__min"]
+            return queryset.filter(level=min)
+
+    class LessSubmittedProblemFilter(BaseFilterBackend):
+        def filter_queryset(self, request, queryset, view):
+            queryset = queryset.annotate(submissions_count=Count("submissions"))
+            min = queryset.aggregate(Min("submissions_count"))["submissions_count__min"]
+            return queryset.filter(submissions_count=min)
+
+    class LastestProblemFilter(BaseFilterBackend):
+        def filter_queryset(self, request, queryset, view):
+            return queryset.order_by("-created_at")  # TODO : single or queryset?
+
+    queryset = Problem.objects.all()
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = ProblemDetailSerializer
+    filter_backends = [
+        NotSolvedProblemsFilter,
+        MinLevelProblemFilter,
+        LessSubmittedProblemFilter,
+        LastestProblemFilter,
+    ]
+
+    def get(self, request):
+
+        queryset = self.filter_queryset(self.get_queryset())
+
+        if queryset.exists():
+            serializer = self.get_serializer(queryset.first())
+            return Response(serializer.data)
+
+        return Response(
+            {"result": "no problems to recommend."},
+            status=HTTP_204_NO_CONTENT,
+        )
