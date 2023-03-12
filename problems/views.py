@@ -11,6 +11,8 @@ from rest_framework.generics import (
     RetrieveUpdateDestroyAPIView,
     GenericAPIView,
 )
+from rest_framework.status import HTTP_204_NO_CONTENT
+
 from .serializers import (
     ProblemListSerializer,
     ProblemCreateUpdateSerializer,
@@ -21,6 +23,16 @@ from .serializers import (
 )
 from .models import Problem
 from .permissions import IsOwnerOrReadOnly, IsOwnerOrSolvedUserReadOnly
+
+
+### recommendation api
+
+from .filters import (
+    NotSolvedProblemsFilter,
+    MinLevelProblemFilter,
+    LessSubmittedProblemFilter,
+    LastestProblemFilter,
+)
 
 
 class ProblemsAPI(ListCreateAPIView):
@@ -103,23 +115,22 @@ class ProblemSubmissionAPI(RetrieveAPIView):
             model = Submission
             fields = "__all__"
 
-    class UserSubmissionFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-            return queryset.filter(user=request.user)
-
-    class ProblemSubmissionFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-            problem = Problem.objects.get(pk=view.kwargs["pk"])
-            return queryset.filter(problem=problem)
-
     queryset = Submission.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = SubmissionRetrieveSerializer
-    filter_backends = [UserSubmissionFilter, ProblemSubmissionFilter]
-    lookup_url_kwarg = {}
+
+    def filter_queryset(self, queryset):
+        try:
+            try:
+                problem = Problem.objects.get(pk=self.kwargs["pk"])
+            except Problem.DoesNotExist:
+                raise NotFound
+            return queryset.get(user=self.request.user, problem=problem)
+        except Submission.DoesNotExist:
+            raise NotFound
 
     def get(self, request, *args, **kwargs):
-        obj = self.filter_queryset(self.get_queryset()).first()
+        obj = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(obj)
         return Response(serializer.data)
 
@@ -203,54 +214,10 @@ class ProblemSolutionAPI(ListCreateAPIView):
         return self.SolutionCreateSerializer
 
 
-### recommendation api
-from django.db.models import QuerySet, Min, Count
-
-from rest_framework.generics import GenericAPIView, RetrieveAPIView, ListAPIView
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.status import HTTP_204_NO_CONTENT
-
-from .serializers import ProblemDetailSerializer
-from .models import Problem
-
-
 class RecommendProblemAPI(RetrieveAPIView):
     """
     Recommend Problem api for user,
     """
-
-    class NotMineProblemsFilter(BaseFilterBackend):
-        """
-        For problem model filter to exclude mines
-        """
-
-        def filter_queryset(self, request, queryset, view):
-            return queryset.exclude(onwer=request.user)
-
-    class NotSolvedProblemsFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-
-            query = {
-                "submissions__user": request.user,
-                "submissions__score": 100,
-            }
-            return queryset.exclude(**query)
-
-    class MinLevelProblemFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-            # TODO : error handling
-            min = queryset.aggregate(Min("level"))["level__min"]
-            return queryset.filter(level=min)
-
-    class LessSubmittedProblemFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-            queryset = queryset.annotate(submissions_count=Count("submissions"))
-            min = queryset.aggregate(Min("submissions_count"))["submissions_count__min"]
-            return queryset.filter(submissions_count=min)
-
-    class LastestProblemFilter(BaseFilterBackend):
-        def filter_queryset(self, request, queryset, view):
-            return queryset.order_by("-created_at")  # TODO : single or queryset?
 
     queryset = Problem.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
