@@ -36,8 +36,37 @@ class Category(AutoTimeTrackingModelBase):
         return f"{self.category}"
 
 
+class ProblemManager(models.Manager):
+    """
+    Problem model manager
+    do queries.
+    """
+
+    SEPARATOR = ","
+
+    def _list_queries(self, field_name, values: list) -> models.Q:
+        query = models.Q()
+        for value in values:
+            query |= models.Q(**{field_name: value})
+        return query
+
+    def get_queriedset(self, levels=None, categories=None):
+
+        queryset = self.all()
+        query = models.Q()
+        if levels:
+            query &= self._list_queries("level", levels.split(self.SEPARATOR))
+        if categories:
+            query &= self._list_queries("category", categories.split(self.SEPARATOR))
+        # TODO : query with rate of solved
+
+        return queryset.filter(query)
+
+
 class Problem(AutoTimeTrackingModelBase):
     """Problem model definition"""
+
+    objects = ProblemManager()
 
     class Meta:
         constraints = [

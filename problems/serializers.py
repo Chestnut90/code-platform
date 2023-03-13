@@ -24,12 +24,16 @@ class CategorySerializer(ModelSerializer):
 
 
 class AnswerSerializer(ModelSerializer):
+    """Problem-Answer serializer"""
+
     class Meta:
         model = Answer
         fields = "__all__"
 
 
 class CommentarySerializer(ModelSerializer):
+    """Problem-commentary serializer"""
+
     class Meta:
         model = Commentary
         fields = "__all__"
@@ -48,15 +52,26 @@ class ProblemCommentarySerializer(ModelSerializer):
         return CommentarySerializer(obj.commentary).data
 
 
-class ProblemListSerializer(ModelSerializer):
+class ProblemSerializerBase(ModelSerializer):
+    """Abstract serializer for problem read."""
 
-    category = serializers.StringRelatedField(
-        read_only=True
-    )  # CategorySerializer(read_only=True)
+    owner = serializers.StringRelatedField(read_only=True)
+    category = serializers.StringRelatedField(read_only=True)
 
-    # TODO : sumitted field
-    # TODO : correct solutions field
+    submitted_count = serializers.SerializerMethodField()
+    solved_count = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Problem
+
+    def get_submitted_count(self, obj):
+        return obj.submitted_count()
+
+    def get_solved_count(self, obj):
+        return obj.solved_count()
+
+
+class ProblemListSerializer(ProblemSerializerBase):
     class Meta:
         model = Problem
         fields = (
@@ -64,6 +79,9 @@ class ProblemListSerializer(ModelSerializer):
             "name",
             "level",
             "category",
+            "owner",
+            "submitted_count",
+            "solved_count",
         )
 
 
@@ -72,21 +90,7 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
     Problem create and update serializer
     """
 
-    class AnswerCreateSerializer(ModelSerializer):
-        """Problem-Answer create serializer"""
-
-        class Meta:
-            model = Answer
-            fields = ("answer",)
-
-    class CommentaryCreateSerializer(ModelSerializer):
-        """Problem Commentary create serializer"""
-
-        class Meta:
-            model = Commentary
-            fields = ("comment",)
-
-    owner = UserSerializer(read_only=True)  # TODO : using request.user auth.
+    owner = serializers.StringRelatedField(read_only=True)
     # TODO : customize, category pk error message
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     commentary = CommentarySerializer()
@@ -97,14 +101,13 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
         fields = "__all__"
 
     def validate_level(self, value):
-        # TODO : delete when level field has check constraints
         if isinstance(value, int) and value in range(1, 6):
             return value
         raise ValidationError("level must be one of [1, 2, 3, 4, 5].")
 
     submodels = [
-        ("answer", AnswerCreateSerializer),
-        ("commentary", CommentaryCreateSerializer),
+        ("answer", AnswerSerializer),
+        ("commentary", CommentarySerializer),
     ]
 
     def create(self, validated_data):
@@ -133,13 +136,8 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
         return super().update(instance, validated_data)
 
 
-class ProblemDetailSerializer(ModelSerializer):
+class ProblemDetailSerializer(ProblemSerializerBase):
 
-    category = serializers.StringRelatedField(read_only=True)
-    owner = serializers.StringRelatedField(read_only=True)
-
-    submitted_count = serializers.SerializerMethodField()
-    solved_count = serializers.SerializerMethodField()
     # TODO : show link for commentary, answer?.
 
     class Meta:
@@ -148,9 +146,3 @@ class ProblemDetailSerializer(ModelSerializer):
             "commentary",
             "answer",
         )
-
-    def get_submitted_count(self, obj):
-        return obj.submitted_count()
-
-    def get_solved_count(self, obj):
-        return obj.solved_count()

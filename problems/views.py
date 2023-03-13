@@ -37,13 +37,16 @@ from .filters import (
 
 class ProblemsAPI(ListCreateAPIView):
     """
-    Problems list and create api,
+    Problems api,
+    GET, with parameters
+        example, 'problems?categories=1,2&levels=1,2'
     support get and post
     """
 
     queryset = Problem.objects.all()
     serializer_class = ProblemListSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [NotSolvedProblemsFilter]
     pagination_class = (
         PageNumberPagination  # TODO : receive page and page_size, customize
     )
@@ -57,6 +60,14 @@ class ProblemsAPI(ListCreateAPIView):
         if self.request.method in SAFE_METHODS:
             return ProblemListSerializer
         return ProblemCreateUpdateSerializer
+
+    def get_queryset(self):
+        """
+        queryset from filtered by url parameters, levels and categories
+        """
+        levels = self.request.query_params.get("levels", None)
+        categories = self.request.query_params.get("categories", None)
+        return Problem.objects.get_queriedset(levels=levels, categories=categories)
 
 
 class ProblemAPI(RetrieveUpdateDestroyAPIView):
