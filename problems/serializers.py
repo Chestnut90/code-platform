@@ -20,7 +20,11 @@ class UserSerializer(ModelSerializer):
 class CategorySerializer(ModelSerializer):
     class Meta:
         model = Category
-        fields = ("category",)
+        fields = (
+            "id",
+            "category",
+        )
+        read_only_fields = ("id",)
 
 
 class AnswerSerializer(ModelSerializer):

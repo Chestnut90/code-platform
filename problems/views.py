@@ -6,6 +6,7 @@ from rest_framework.permissions import (
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.generics import (
+    ListAPIView,
     ListCreateAPIView,
     RetrieveAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -14,14 +15,14 @@ from rest_framework.generics import (
 from rest_framework.status import HTTP_204_NO_CONTENT
 
 from .serializers import (
+    CategorySerializer,
     ProblemListSerializer,
     ProblemCreateUpdateSerializer,
     ProblemDetailSerializer,
     AnswerSerializer,
-    CommentarySerializer,
     ProblemCommentarySerializer,
 )
-from .models import Problem
+from .models import Problem, Category
 from .permissions import IsOwnerOrReadOnly, IsOwnerOrSolvedUserReadOnly
 
 
@@ -33,6 +34,12 @@ from .filters import (
     LessSubmittedProblemFilter,
     LastestProblemFilter,
 )
+
+
+class CategoriesAPI(ListAPIView):
+    queryset = Category.objects.all()
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = CategorySerializer
 
 
 class ProblemsAPI(ListCreateAPIView):

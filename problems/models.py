@@ -27,6 +27,7 @@ class Commentary(AutoTimeTrackingModelBase):
 class Category(AutoTimeTrackingModelBase):
     """Category of Problem model definition"""
 
+    # TODO : field name to 'name'
     category = models.CharField(
         max_length=50,
         unique=True,
