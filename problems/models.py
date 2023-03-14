@@ -63,6 +63,15 @@ class ProblemManager(models.Manager):
 
         return queryset.filter(query)
 
+    def check_answer(self, problem_id, answer):
+        """
+        check problem answer with given answer.\n
+        can raise Problem.DoesNotExist
+        """
+        problem = self.get(pk=problem_id)
+
+        return 100 if problem.answer.answer == answer else 0
+
 
 class Problem(AutoTimeTrackingModelBase):
     """Problem model definition"""
@@ -119,6 +128,15 @@ class Problem(AutoTimeTrackingModelBase):
         return f"{self.name}"
 
 
+class SubmissionManager(models.Manager):
+    def find_submission_on_problem(self, problem_id, user):
+        """
+        find submission instance with problem_id and user object
+        can raise Submission.DoesNotFound
+        """
+        return self.get(models.Q(problem=problem_id) & models.Q(user=user.id))
+
+
 class Submission(
     AutoTimeTrackingModelBase,
     ScoreModelBase,
@@ -127,6 +145,8 @@ class Submission(
     Submission Model definition,
     (user, problem) : submission => (1 : 1)
     """
+
+    objects = SubmissionManager()
 
     class Meta(ScoreModelBase.Meta):
         constraints = [
@@ -154,6 +174,21 @@ class Submission(
         return f"{self.user}'s submission to '{self.problem}'"
 
 
+class SolutionManager(models.Manager):
+    def find_submitted_solutions(self, problem_id, user):
+        """
+        find solutions of problem which user submitted.
+        ordered by lastest submitted solutions.
+        """
+        queryset = self.all()
+        try:
+            submission = Submission.objects.find_submission_on_problem(problem_id, user)
+        except Submission.DoesNotExist:
+            raise Solution.DoesNotExist
+
+        return queryset.filter(submission=submission).order_by("-created_at")
+
+
 class Solution(
     AnswerModelBase,
     ScoreModelBase,
@@ -162,6 +197,8 @@ class Solution(
     Solution model for user solution to be submit on problem,
     Submission : Solution (1:N)
     """
+
+    objects = SolutionManager()
 
     class Meta:
         constraints = [

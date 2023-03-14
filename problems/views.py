@@ -3,6 +3,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     SAFE_METHODS,
 )
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.generics import (
@@ -21,22 +22,24 @@ from .serializers import (
     ProblemDetailSerializer,
     AnswerSerializer,
     ProblemCommentarySerializer,
+    SubmissionSerializer,
+    SolutionReadCreateSerializer,
 )
-from .models import Problem, Category
+from .models import Problem, Category, Submission, Solution
 from .permissions import IsOwnerOrReadOnly, IsOwnerOrSolvedUserReadOnly
-
-
-### recommendation api
-
 from .filters import (
     NotSolvedProblemsFilter,
     MinLevelProblemFilter,
     LessSubmittedProblemFilter,
     LastestProblemFilter,
-)
+)  ### recommendation api
 
 
 class CategoriesAPI(ListAPIView):
+    """
+    Categories API for list-up categories
+    """
+
     queryset = Category.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = CategorySerializer
@@ -53,7 +56,7 @@ class ProblemsAPI(ListCreateAPIView):
     queryset = Problem.objects.all()
     serializer_class = ProblemListSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [NotSolvedProblemsFilter]
+    # filter_backends = [NotSolvedProblemsFilter]
     pagination_class = (
         PageNumberPagination  # TODO : receive page and page_size, customize
     )
@@ -120,35 +123,27 @@ class ProblemCommentaryAPI(RetrieveAPIView):
     ]
 
 
-from .models import Solution, Submission
-from rest_framework import serializers
-from rest_framework.request import Request
-from rest_framework.exceptions import NotFound
-from rest_framework.filters import SearchFilter, BaseFilterBackend
-
-
 class ProblemSubmissionAPI(RetrieveAPIView):
-    class SubmissionRetrieveSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = Submission
-            fields = "__all__"
+    """
+    Submission api with problem_id
+    """
 
-    queryset = Submission.objects.all()
+    queryset = None  # use get_queryset instead
     permission_classes = [IsAuthenticated]
-    serializer_class = SubmissionRetrieveSerializer
+    serializer_class = SubmissionSerializer
 
-    def filter_queryset(self, queryset):
+    def get_queryset(self):
+        id = self.kwargs["pk"]
+        user = self.request.user
         try:
-            try:
-                problem = Problem.objects.get(pk=self.kwargs["pk"])
-            except Problem.DoesNotExist:
-                raise NotFound
-            return queryset.get(user=self.request.user, problem=problem)
+            return Submission.objects.find_submission_on_problem(
+                problem_id=id, user=user
+            )
         except Submission.DoesNotExist:
             raise NotFound
 
     def get(self, request, *args, **kwargs):
-        obj = self.filter_queryset(self.get_queryset())
+        obj = self.get_queryset()
         serializer = self.get_serializer(obj)
         return Response(serializer.data)
 
@@ -158,78 +153,17 @@ class ProblemSolutionAPI(ListCreateAPIView):
     solution submit api
     """
 
-    # class User
-    # get, url = "problems/<int:pk>/solutions"
-    # post, url = 'problems/<int:pk>/solutions
-
-    class SolutionSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = Solution
-            fields = "__all__"
-
-    class SolutionCreateSerializer(serializers.ModelSerializer):
-
-        submission = serializers.PrimaryKeyRelatedField(read_only=True)
-
-        class Meta:
-            model = Solution
-            fields = "__all__"
-            read_only_fields = ("score",)
-
-        def create(self, validated_data):
-            # TODO : refactoring to before and after creation.
-            # TODO : atomic transaction
-
-            # check submission existed
-            problem_id = self.context["view"].kwargs["pk"]
-            user = self.context["request"].user
-            problem = Problem.objects.get(pk=problem_id)
-
-            query_kwargs = {"user": user, "problem": problem}
-
-            from django.db.models import Q
-
-            class SubmissionCreateSerializer(serializers.ModelSerializer):
-                class Meta:
-                    model = Submission
-                    fields = "__all__"
-
-            if not Submission.objects.filter(Q(user=user, problem=problem)).exists():
-                serializer = SubmissionCreateSerializer(
-                    data={"user": user.pk, "problem": problem.pk}  # TODO : simplify
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-
-            submission = Submission.objects.get(Q(user=user, problem=problem))
-            validated_data["submission"] = submission
-
-            # TODO : move to bussiness logic
-            # check submitted answer with problem answer
-            validated_data["score"] = (
-                100 if problem.answer.answer == validated_data["answer"] else 0
-            )
-
-            # update submission score
-            if validated_data["score"] == 100:
-                serializer = SubmissionCreateSerializer(
-                    submission, data={"score": validated_data["score"]}, partial=True
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-
-            return super().create(validated_data)
-
-    queryset = Solution.objects.all()
-    serializer_class = None  # use get_serializer_class instead.
+    queryset = None  # use get_queryset instead
+    serializer_class = SolutionReadCreateSerializer
     permission_classes = [IsAuthenticated]  # TODO : block to owner?
-    filter_backends = []  # TODO : order solution by desc
-    pagination_class = None  # TODO : pagination
+    pagination_class = None  # TODO : pagination?
 
-    def get_serializer_class(self):
-        if self.request.method in SAFE_METHODS:
-            return self.SolutionSerializer
-        return self.SolutionCreateSerializer
+    def get_queryset(self):
+        pk = self.kwargs["pk"]
+        try:
+            return Solution.objects.find_submitted_solutions(pk, self.request.user)
+        except Solution.DoesNotExist:
+            raise NotFound
 
 
 class RecommendProblemAPI(RetrieveAPIView):
