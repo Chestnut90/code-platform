@@ -16,7 +16,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from . import swagger
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("problems/", include("problems.urls")),
-]
+] + swagger.urlpatterns

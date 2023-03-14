@@ -15,6 +15,9 @@ from rest_framework.generics import (
 )
 from rest_framework.status import HTTP_204_NO_CONTENT
 
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+
 from .serializers import (
     CategorySerializer,
     ProblemListSerializer,
@@ -47,10 +50,7 @@ class CategoriesAPI(ListAPIView):
 
 class ProblemsAPI(ListCreateAPIView):
     """
-    Problems api,
-    GET, with parameters
-        example, 'problems?categories=1,2&levels=1,2'
-    support get and post
+    Problems api
     """
 
     queryset = Problem.objects.all()
@@ -78,6 +78,34 @@ class ProblemsAPI(ListCreateAPIView):
         levels = self.request.query_params.get("levels", None)
         categories = self.request.query_params.get("categories", None)
         return Problem.objects.get_queriedset(levels=levels, categories=categories)
+
+    @swagger_auto_schema(
+        operation_description="GET problems with query parameters",
+        manual_parameters=[
+            openapi.Parameter(
+                name="levels",
+                in_=openapi.IN_QUERY,
+                description="Problems levels want to get, ex) 'levels=1,2' for level 1 and 2",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter(
+                name="categories",
+                in_=openapi.IN_QUERY,
+                description="Problems categories want to get, ex) 'categories=1,2' for category 1 and 2",
+                type=openapi.TYPE_STRING,
+            ),
+        ],
+        responses={"404": "Not Found"},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="Add problem",
+        request_body=ProblemCreateUpdateSerializer,
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 class ProblemAPI(RetrieveUpdateDestroyAPIView):
