@@ -108,38 +108,37 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
         fields = "__all__"
 
     def validate_level(self, value):
-        if isinstance(value, int) and value in range(1, 6):
+        _range = range(1, 6)
+        if isinstance(value, int) and value in _range:
             return value
-        raise ValidationError("level must be one of [1, 2, 3, 4, 5].")
+        raise ValidationError(f"level must be one of {list(_range)}.")
 
-    submodels = [
+    nested_models = [
         ("answer", AnswerSerializer),
         ("commentary", CommentarySerializer),
     ]
 
-    def create(self, validated_data):
-
-        # save submodels
-        for key, serializer_class in self.submodels:
-            serializer = serializer_class(data=validated_data.pop(key))
-            serializer.is_valid(raise_exception=True)
-            validated_data[key] = serializer.save()
-
-        # add owner info
-        validated_data["owner"] = self.context["request"].user
-
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        # save submodels
-        for key, serializer_class in self.submodels:
-            submodel_instance = getattr(instance, key)
+    def save_nested(self, validated_data, partial=False):
+        """
+        save nested model with defined in self.nested_models
+        """
+        for key, serializer_class in self.nested_models:
+            instance = getattr(instance, key) if partial else None
             serializer = serializer_class(
-                submodel_instance, data=validated_data.pop(key)
+                instance=instance, data=validated_data.pop(key)
             )
             serializer.is_valid(raise_exception=True)
             validated_data[key] = serializer.save()
 
+    def create(self, validated_data):
+        self.save_nested(validated_data)
+
+        # add owner info
+        validated_data["owner"] = self.context["request"].user
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        self.save_nested(validated_data, partial=True)
         return super().update(instance, validated_data)
 
 
