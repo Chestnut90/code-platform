@@ -22,7 +22,7 @@ class CategorySerializer(ModelSerializer):
         model = Category
         fields = (
             "id",
-            "category",
+            "name",
         )
         read_only_fields = ("id",)
 

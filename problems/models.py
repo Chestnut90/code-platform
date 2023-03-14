@@ -27,14 +27,13 @@ class Commentary(AutoTimeTrackingModelBase):
 class Category(AutoTimeTrackingModelBase):
     """Category of Problem model definition"""
 
-    # TODO : field name to 'name'
-    category = models.CharField(
+    name = models.CharField(
         max_length=50,
         unique=True,
     )
 
     def __str__(self) -> str:
-        return f"{self.category}"
+        return f"{self.name}"
 
 
 class ProblemManager(models.Manager):
@@ -86,13 +85,12 @@ class Problem(AutoTimeTrackingModelBase):
         ]
 
     # name of this problem.
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     # problem level (1 to 5)
     level = models.PositiveSmallIntegerField()
     # string about problem
     description = models.TextField()
-    # TODO : error when category deleted.
-    # using bfs, dfs, stack...
+    # TODO : how to set default key
     category = models.ForeignKey(
         "Category",
         on_delete=models.SET_NULL,
