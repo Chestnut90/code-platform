@@ -146,3 +146,16 @@ CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672"
 CELERY_TASK_SERIALIZER = "json"
 # CELERY_RESULT_SERIALIZER = 'json'
 # CELERY_RESULT_BACKEND = "redis://localhost:6379"
+
+# Redis Cache
+REDIS_CACHE_TTL = 60 * 5  # default 5 min
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",  # change to just redis
+        "LOCATION": "redis://localhost:6379",
+        "TIMEOUT": REDIS_CACHE_TTL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
