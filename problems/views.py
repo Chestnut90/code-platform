@@ -13,7 +13,7 @@ from rest_framework.generics import (
     RetrieveUpdateDestroyAPIView,
     GenericAPIView,
 )
-from rest_framework.status import HTTP_204_NO_CONTENT
+from rest_framework.status import HTTP_204_NO_CONTENT, HTTP_202_ACCEPTED
 
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -36,6 +36,8 @@ from .filters import (
     LessSubmittedProblemFilter,
     LastestProblemFilter,
 )  ### recommendation api
+
+from .tasks import check_answer_and_update_score
 
 
 class CategoriesAPI(ListAPIView):
@@ -118,6 +120,7 @@ class ProblemAPI(RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     def get_serializer_class(self):
+
         if self.request.method in SAFE_METHODS:
             return ProblemDetailSerializer
         return ProblemCreateUpdateSerializer
@@ -192,6 +195,26 @@ class ProblemSolutionAPI(ListCreateAPIView):
             return Solution.objects.find_submitted_solutions(pk, self.request.user)
         except Solution.DoesNotExist:
             raise NotFound
+
+    def post(self, request, *args, **kwargs):
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        solution_id = serializer.data["id"]
+        problem_id = self.kwargs["pk"]
+
+        ret = check_answer_and_update_score.delay(problem_id, solution_id)
+
+        return Response(
+            {
+                "task": {
+                    "href": f"problems/{problem_id}/solutions",
+                }
+            },
+            status=HTTP_202_ACCEPTED,
+        )
 
 
 class RecommendProblemAPI(RetrieveAPIView):

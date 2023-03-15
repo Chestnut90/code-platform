@@ -171,6 +171,7 @@ class SolutionReadCreateSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "submission",
             "score",
+            "state",
         )
 
     def _get_submission(self, problem_id, user):
@@ -193,27 +194,25 @@ class SolutionReadCreateSerializer(serializers.ModelSerializer):
         return submission
 
     def create(self, validated_data):
-        # TODO : atomic transaction?
+        """create solution model instance with submission"""
 
         problem_id = self.context["view"].kwargs["pk"]
         user = self.context["request"].user  # TODO : check Anonymous?
 
         submission = self._get_submission(problem_id, user)
-        score = Problem.objects.check_answer(problem_id, validated_data["answer"])
 
         # add submission and score into validated_data
         validated_data["submission"] = submission
-        validated_data["score"] = score
 
         # create instance
-        instance = super().create(validated_data)
+        return super().create(validated_data)
 
-        # update submission score
-        if validated_data["score"] == 100:
-            serializer = SubmissionSerializer(
-                submission, data={"score": validated_data["score"]}, partial=True
-            )
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
+        # # update submission score
+        # if validated_data["score"] == 100:
+        #     serializer = SubmissionSerializer(
+        #         submission, data={"score": validated_data["score"]}, partial=True
+        #     )
+        #     serializer.is_valid(raise_exception=True)
+        #     serializer.save()
 
-        return instance
+        # return instance

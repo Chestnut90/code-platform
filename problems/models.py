@@ -196,6 +196,15 @@ class Solution(
     Submission : Solution (1:N)
     """
 
+    CHECK_BEFORE = "check_before"
+    CHEKING = "checking"
+    CHECK_DONE = "check_done"
+
+    class CheckStateChoice(models.TextChoices):
+        CHECK_BEFORE = ("check_before", "Check Before")
+        CHECKING = ("checking", "Checking")
+        CHECK_DONE = ("check_done", "Check Done")
+
     objects = SolutionManager()
 
     class Meta:
@@ -207,6 +216,12 @@ class Solution(
         "Submission",
         on_delete=models.CASCADE,
         related_name="solutions",
+    )
+
+    state = models.CharField(
+        max_length=12,
+        choices=CheckStateChoice.choices,
+        default=CHECK_BEFORE,
     )
 
     def __str__(self) -> str:

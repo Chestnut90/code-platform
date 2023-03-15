@@ -38,6 +38,7 @@ _DEFAULT_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
+
 _THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_yasg",
@@ -136,3 +137,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "PAGE_SIZE": 2,
 }
+
+# Celery Configuration Options
+CELERY_TIMEZONE = "Asia/Seoul"
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672"
+CELERY_TASK_SERIALIZER = "json"
+# CELERY_RESULT_SERIALIZER = 'json'
+# CELERY_RESULT_BACKEND = "redis://localhost:6379"
