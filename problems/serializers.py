@@ -123,10 +123,11 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
         save nested model with defined in self.nested_models
         """
         for key, serializer_class in self.nested_models:
-            instance = getattr(instance, key) if partial else None
-            serializer = serializer_class(
-                instance=instance, data=validated_data.pop(key)
-            )
+            instance = getattr(self.instance, key, None) if partial else None
+            data = validated_data.pop(key, None)
+            if not data:
+                continue
+            serializer = serializer_class(instance=instance, data=data, partial=partial)
             serializer.is_valid(raise_exception=True)
             validated_data[key] = serializer.save()
 

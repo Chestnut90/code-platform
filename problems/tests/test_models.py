@@ -18,19 +18,19 @@ from ..models import (
 )
 
 
+def create_user(username):
+    return User.objects.create(username=username)
+
+
+def create_n_users(n):
+    for i in range(n):
+        create_user(f"user_{i}")
+    return User.objects.all()
+
+
 class UserModelTestCase(TestCase):
-    @staticmethod
-    def _create_user(username):
-        return User.objects.create(username=username)
-
-    @staticmethod
-    def _create_n_users(n):
-        for i in range(n):
-            UserModelTestCase._create_user(f"user_{i}")
-        return User.objects.all()
-
     def setUp(self) -> None:
-        self._create_n_users(3)
+        create_n_users(3)
 
     def test_check(self):
 
@@ -39,20 +39,20 @@ class UserModelTestCase(TestCase):
         self.assertEqual(user0.username, "user_0")
 
 
+def create_category(name):
+    return Category.objects.create(name=name)
+
+
+def create_n_categories(n):
+    for i in range(n):
+        create_category(f"category_{i}")
+
+
 class CategoryModelTestCase(TestCase):
-    @staticmethod
-    def _create_category(name):
-        return Category.objects.create(name=name)
-
-    @staticmethod
-    def _create_n_categories(n):
-        for i in range(n):
-            CategoryModelTestCase._create_category(f"category_{i}")
-
     def test_category(self):
 
         n = 3
-        self._create_n_categories(n)
+        create_n_categories(n)
         self.assertEqual(Category.objects.count(), n)
 
         category0 = Category.objects.get(pk=1)
@@ -67,7 +67,7 @@ class CategoryModelTestCase(TestCase):
         with mock.patch("django.utils.timezone.now") as mock_now:
             mock_now.return_value = now
             name = "category_time"
-            self._create_category(name)
+            create_category(name)
             category = Category.objects.get(name=name)
 
         self.assertEqual(category.updated_at, now)
@@ -76,47 +76,47 @@ class CategoryModelTestCase(TestCase):
         settings.USE_TZ = True
 
 
+def create_problem(**kwargs):
+
+    _answer = kwargs.pop("answer")
+    _commentary = kwargs.pop("commentary")
+
+    with atomic():
+        kwargs["answer"] = Answer.objects.create(answer=_answer)
+        kwargs["commentary"] = Commentary.objects.create(comment=_commentary)
+
+        problem = Problem.objects.create(**kwargs)
+    return problem
+
+
+def create_n_problem(n, users, categories):
+
+    user_len = users.count()
+    categories_lens = categories.count()
+
+    for i in range(n):
+        problem = {
+            "name": f"name-{i}",
+            "answer": f"answer-{i}",
+            "commentary": f"comment-{i}",
+            "description": f"description-{i}",
+            "level": randint(1, 5),
+            "owner": users[randint(0, user_len - 1)],
+            "category": categories[randint(0, categories_lens - 1)],
+        }
+        create_problem(**problem)
+
+
 class ProblemModelTestCase(TestCase):
     """
     create problem-answer-commentary
     """
 
-    @staticmethod
-    def _create_problem(**kwargs):
-
-        _answer = kwargs.pop("answer")
-        _commentary = kwargs.pop("commentary")
-
-        with atomic():
-            kwargs["answer"] = Answer.objects.create(answer=_answer)
-            kwargs["commentary"] = Commentary.objects.create(comment=_commentary)
-
-            problem = Problem.objects.create(**kwargs)
-        return problem
-
-    @staticmethod
-    def _create_n_problem(n, users, categories):
-
-        user_len = users.count()
-        categories_lens = categories.count()
-
-        for i in range(n):
-            problem = {
-                "name": f"name-{i}",
-                "answer": f"answer-{i}",
-                "commentary": f"comment-{i}",
-                "description": f"description-{i}",
-                "level": randint(1, 5),
-                "owner": users[randint(0, user_len - 1)],
-                "category": categories[randint(0, categories_lens - 1)],
-            }
-            ProblemModelTestCase._create_problem(**problem)
-
     def setUp(self) -> None:
 
-        UserModelTestCase._create_n_users(3)
-        CategoryModelTestCase._create_n_categories(3)
-        self._create_n_problem(3, User.objects.all(), Category.objects.all())
+        create_n_users(3)
+        create_n_categories(3)
+        create_n_problem(3, User.objects.all(), Category.objects.all())
 
     def test_default(self):
 
@@ -129,7 +129,7 @@ class ProblemModelTestCase(TestCase):
             "owner": User.objects.get(pk=1),
             "category": Category.objects.get(pk=1),
         }
-        problem = self._create_problem(**kwargs)
+        problem = create_problem(**kwargs)
         instance = Problem.objects.get(pk=problem.pk)
 
         self.assertEqual(instance.name, problem.name)
@@ -230,7 +230,7 @@ class ProblemModelTestCase(TestCase):
 
         with self.assertRaises(IntegrityError):
             with atomic():
-                self._create_problem(
+                create_problem(
                     **{
                         "name": first_problem.name,
                         "answer": "name_unique_constraints",
@@ -259,7 +259,7 @@ class ProblemModelTestCase(TestCase):
                     "commentary": "comment-level0",
                     "owner": User.objects.get(pk=1),
                 }
-                self._create_problem(**problem)
+                create_problem(**problem)
 
     def test_owner_cascade(self):
         """
@@ -294,36 +294,32 @@ class ProblemModelTestCase(TestCase):
         self.assertEqual(updated_problem.category, None)
 
 
+def create_submission(user, problem, **kwargs):
+
+    return Submission.objects.create(user=user, problem=problem, **kwargs)
+
+
+def create_n_submission(n, users, problems):
+    import itertools
+
+    users_count = users.count()
+    problems_count = problems.count()
+    max_n = users_count * problems_count
+    n = max_n if n > max_n else n
+
+    product = list(itertools.product(range(users_count), range(problems_count)))
+    for i in range(n):
+        index = randint(0, len(product) - 1)
+        pair = product.pop(index)
+        create_submission(users[pair[0]], problems[pair[1]])
+
+
 class SubmissionModelTestCase(TestCase):
-    @staticmethod
-    def _create_submission(user, problem, **kwargs):
-
-        return Submission.objects.create(user=user, problem=problem, **kwargs)
-
-    @staticmethod
-    def _create_n_submission(n, users, problems):
-        import itertools
-
-        users_count = users.count()
-        problems_count = problems.count()
-        max_n = users_count * problems_count
-        n = max_n if n > max_n else n
-
-        product = list(itertools.product(range(users_count), range(problems_count)))
-        for i in range(n):
-            index = randint(0, len(product) - 1)
-            pair = product.pop(index)
-            SubmissionModelTestCase._create_submission(
-                users[pair[0]], problems[pair[1]]
-            )
-
     def setUp(self) -> None:
-        UserModelTestCase._create_n_users(3)
-        CategoryModelTestCase._create_n_categories(1)
-        ProblemModelTestCase._create_n_problem(
-            3, User.objects.all(), Category.objects.all()
-        )
-        self._create_n_submission(3, User.objects.all(), Problem.objects.all())
+        create_n_users(3)
+        create_n_categories(1)
+        create_n_problem(3, User.objects.all(), Category.objects.all())
+        create_n_submission(3, User.objects.all(), Problem.objects.all())
 
     def test_default(self):
 
@@ -331,10 +327,10 @@ class SubmissionModelTestCase(TestCase):
         n = Submission.objects.count()
 
         # add user
-        user = UserModelTestCase._create_user("hello")
+        user = create_user("hello")
         first_problem = Problem.objects.first()
 
-        submission = self._create_submission(user, first_problem)
+        submission = create_submission(user, first_problem)
 
         self.assertEqual(submission.user, user)
         self.assertEqual(submission.problem, first_problem)
@@ -349,7 +345,7 @@ class SubmissionModelTestCase(TestCase):
 
         with self.assertRaises(IntegrityError):
             with atomic():
-                self._create_submission(user, problem)
+                create_submission(user, problem)
 
         self.assertEqual(
             Submission.objects.filter(user=user, problem=problem).count(), 1
@@ -361,53 +357,45 @@ class SubmissionModelTestCase(TestCase):
         prev_n = Submission.objects.count()
 
         # add user
-        user = UserModelTestCase._create_user("hello")
+        user = create_user("hello")
         first_problem = Problem.objects.first()
 
         with self.assertRaises(IntegrityError):
             with atomic():
-                submission = self._create_submission(
-                    user, first_problem, **{"score": 101}
-                )
+                submission = create_submission(user, first_problem, **{"score": 101})
 
         with self.assertRaises(IntegrityError):
             with atomic():
-                submission = self._create_submission(
-                    user, first_problem, **{"score": -1}
-                )
+                submission = create_submission(user, first_problem, **{"score": -1})
 
         self.assertEqual(prev_n, Submission.objects.count())
 
 
+def create_solution(user, problem, answer):
+    try:
+        submission = Submission.objects.find_submission_on_problem(problem.id, user)
+    except Submission.DoesNotExist:
+        submission = create_submission(user, problem)
+
+    return Solution.objects.create(submission, answer)
+
+
+def create_n_solution(n, user, problem, answer):
+    raise NotImplementedError()
+
+
 class SolutionModelTestCase(TestCase):
-    @staticmethod
-    def _create_solution(user, problem, answer):
-        try:
-            submission = Submission.objects.find_submission_on_problem(problem.id, user)
-        except Submission.DoesNotExist:
-            submission = SubmissionModelTestCase._create_submission(user, problem)
-
-        return Solution.objects.create(submission, answer)
-
-    @staticmethod
-    def _create_n_solution(n, user, problem, answer):
-        raise NotImplementedError()
-
     def setUp(self) -> None:
-        UserModelTestCase._create_n_users(3)
-        CategoryModelTestCase._create_n_categories(2)
-        ProblemModelTestCase._create_n_problem(
-            2, User.objects.all(), Category.objects.all()
-        )
+        create_n_users(3)
+        create_n_categories(2)
+        create_n_problem(2, User.objects.all(), Category.objects.all())
 
     def test_default(self):
 
         first_problem = Problem.objects.first()
         first_user = User.objects.first()
 
-        submission = SubmissionModelTestCase._create_submission(
-            first_user, first_problem
-        )
+        submission = create_submission(first_user, first_problem)
 
         prev_n = submission.solutions.count()
 
