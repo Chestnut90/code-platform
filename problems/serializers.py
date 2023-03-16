@@ -28,7 +28,7 @@ class CategorySerializer(ModelSerializer):
 
 
 class AnswerSerializer(ModelSerializer):
-    """Problem-Answer serializer"""
+    """Answer-Commentary of problem serializer"""
 
     class Meta:
         model = Answer
@@ -41,19 +41,6 @@ class CommentarySerializer(ModelSerializer):
     class Meta:
         model = Commentary
         fields = "__all__"
-
-
-# TODO : duplicated
-class ProblemCommentarySerializer(ModelSerializer):
-
-    comment = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Problem
-        fields = ("comment",)
-
-    def get_comment(self, obj):
-        return CommentarySerializer(obj.commentary).data
 
 
 class ProblemSerializerBase(ModelSerializer):
@@ -143,25 +130,17 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
         return super().update(instance, validated_data)
 
 
-class ProblemDetailSerializer(ProblemSerializerBase):
-
-    # TODO : show link for commentary, answer?.
-
-    class Meta:
-        model = Problem
-        exclude = (
-            "commentary",
-            "answer",
-        )
-
-
 class SubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Submission
         fields = "__all__"
 
 
-class SolutionReadCreateSerializer(serializers.ModelSerializer):
+class SolutionSerializer(serializers.ModelSerializer):
+    """
+    solution model serializer
+    methods : get, post
+    """
 
     submission = serializers.PrimaryKeyRelatedField(read_only=True)
 
@@ -206,13 +185,3 @@ class SolutionReadCreateSerializer(serializers.ModelSerializer):
 
         # create instance
         return super().create(validated_data)
-
-        # # update submission score
-        # if validated_data["score"] == 100:
-        #     serializer = SubmissionSerializer(
-        #         submission, data={"score": validated_data["score"]}, partial=True
-        #     )
-        #     serializer.is_valid(raise_exception=True)
-        #     serializer.save()
-
-        # return instance

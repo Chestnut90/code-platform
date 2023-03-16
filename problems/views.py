@@ -6,14 +6,9 @@ from rest_framework.permissions import (
 from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.generics import (
-    ListAPIView,
-    ListCreateAPIView,
-    RetrieveAPIView,
-    RetrieveUpdateDestroyAPIView,
-    GenericAPIView,
-)
 from rest_framework.status import HTTP_204_NO_CONTENT, HTTP_202_ACCEPTED
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
 
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -22,11 +17,8 @@ from .serializers import (
     CategorySerializer,
     ProblemListSerializer,
     ProblemCreateUpdateSerializer,
-    ProblemDetailSerializer,
-    AnswerSerializer,
-    ProblemCommentarySerializer,
     SubmissionSerializer,
-    SolutionReadCreateSerializer,
+    SolutionSerializer,
 )
 from .models import Problem, Category, Submission, Solution
 from .permissions import IsOwnerOrReadOnly, IsOwnerOrSolvedUserReadOnly
@@ -40,26 +32,15 @@ from .filters import (
 from .tasks import check_answer_and_update_score
 
 
-class CategoriesAPI(ListAPIView):
-    """
-    Categories API for list-up categories
-    """
+class ProblemViewSet(ModelViewSet):
+    """Problem View, all view"""
 
-    queryset = Category.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = CategorySerializer
-
-
-class ProblemsAPI(ListCreateAPIView):
-    """
-    Problems api
-    """
-
-    queryset = Problem.objects.all()
-    serializer_class = ProblemListSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    # queryset = Problem.objects
+    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
     # TODO : receive page and page_size, customize
     pagination_class = PageNumberPagination
+
+    problem_url = ["problems-detail", "problems-list"]  # names of problems
 
     def get_serializer_class(self):
         """
@@ -67,9 +48,13 @@ class ProblemsAPI(ListCreateAPIView):
         override from GenericAPIView.
         """
 
-        if self.request.method in SAFE_METHODS:
-            return ProblemListSerializer
-        return ProblemCreateUpdateSerializer
+        current_url = self.request.resolver_match.url_name
+
+        if current_url in self.problem_url:
+            if self.request.method in SAFE_METHODS:
+                return ProblemListSerializer
+            return ProblemCreateUpdateSerializer
+        return super().get_serializer_class()
 
     def get_queryset(self):
         """
@@ -78,6 +63,22 @@ class ProblemsAPI(ListCreateAPIView):
         levels = self.request.query_params.get("levels", "")
         categories = self.request.query_params.get("categories", "")
         return Problem.objects.get_cached_queryset(levels=levels, categories=categories)
+
+    def get_object(self):
+        id = self.kwargs["pk"]
+        try:
+            obj = Problem.objects.get_cached_problem(id)
+        except Problem.DoesNotExist:
+            raise NotFound
+
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def perform_destroy(self, instance):
+        submodels = [instance.answer, instance.commentary]
+        super().perform_destroy(instance)
+        for submodel in submodels:
+            submodel.delete()
 
     @swagger_auto_schema(
         operation_description="GET problems with query parameters",
@@ -97,8 +98,8 @@ class ProblemsAPI(ListCreateAPIView):
         ],
         responses={"404": "Not Found"},
     )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_description="Add problem",
@@ -107,143 +108,47 @@ class ProblemsAPI(ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
-
-class ProblemAPI(RetrieveUpdateDestroyAPIView):
-    """
-    Problem API
-    """
-
-    # queryset = Problem.objects
-    serializer_class = None  # use get_serializer_class instead
-    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
-
-    def get_object(self):
-        id = self.kwargs["pk"]
+    @action(
+        methods=["get"],
+        detail=True,
+        url_path="answer-commentary",
+        url_name="answer_commentary",
+        permission_classes=[
+            IsAuthenticated,
+            IsOwnerOrSolvedUserReadOnly,
+        ],
+        serializer_class=ProblemCreateUpdateSerializer,
+    )
+    def answer_commentary(self, request, pk=None):
         try:
-            obj = Problem.objects.get_cached_problem(id)
+            obj = Problem.objects.get_cached_problem(pk)
         except Problem.DoesNotExist:
             raise NotFound
 
-        self.check_object_permissions(self.request, obj)
-        return obj
-
-    def get_serializer_class(self):
-
-        if self.request.method in SAFE_METHODS:
-            return ProblemDetailSerializer
-        return ProblemCreateUpdateSerializer
-
-    def perform_destroy(self, instance):
-        submodels = [instance.answer, instance.commentary]
-        super().perform_destroy(instance)
-        for submodel in submodels:
-            submodel.delete()
-
-
-class ProblemAnswerAPI(RetrieveAPIView):
-    """Problem Answer retrieve api for only user who solved problem."""
-
-    queryset = Problem.objects.all()
-    serializer_class = AnswerSerializer  # TODO : check, how to works?
-    permission_classes = [
-        IsAuthenticated,
-        IsOwnerOrSolvedUserReadOnly,
-    ]  # TODO : IsOwnerOrSolvedUserReadOnly error message
-
-
-class ProblemCommentaryAPI(RetrieveAPIView):
-    """Problem Commentary retrieve api for only user who solved problem."""
-
-    queryset = Problem.objects.all()
-    serializer_class = ProblemCommentarySerializer
-    permission_classes = [
-        IsAuthenticated,
-        IsOwnerOrSolvedUserReadOnly,
-    ]
-
-
-class ProblemSubmissionAPI(RetrieveAPIView):
-    """
-    Submission api with problem_id
-    """
-
-    queryset = None  # use get_queryset instead
-    permission_classes = [IsAuthenticated]
-    serializer_class = SubmissionSerializer
-
-    def get_queryset(self):
-        id = self.kwargs["pk"]
-        user = self.request.user
-        try:
-            return Submission.objects.find_submission_on_problem(
-                problem_id=id, user=user
-            )
-        except Submission.DoesNotExist:
-            raise NotFound
-
-    def get(self, request, *args, **kwargs):
-        obj = self.get_queryset()
         serializer = self.get_serializer(obj)
         return Response(serializer.data)
 
+    @action(methods=["get"], detail=False)
+    def categories(self, request):
+        """categories of problem"""
+        serializer = CategorySerializer(Category.objects.all(), many=True)
+        return Response(serializer.data)
 
-class ProblemSolutionAPI(ListCreateAPIView):
-    """
-    solution submit api
-    """
-
-    queryset = None  # use get_queryset instead
-    serializer_class = SolutionReadCreateSerializer
-    permission_classes = [IsAuthenticated]  # TODO : block to owner?
-    pagination_class = None  # TODO : pagination?
-
-    def get_queryset(self):
-        pk = self.kwargs["pk"]
-        try:
-            return Solution.objects.find_submitted_solutions(pk, self.request.user)
-        except Solution.DoesNotExist:
-            raise NotFound
-
-    def post(self, request, *args, **kwargs):
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-
-        solution_id = serializer.data["id"]
-        problem_id = self.kwargs["pk"]
-
-        ret = check_answer_and_update_score.delay(problem_id, solution_id)
-
-        return Response(
-            {
-                "task": {
-                    "href": f"problems/{problem_id}/solutions",
-                }
-            },
-            status=HTTP_202_ACCEPTED,
-        )
-
-
-class RecommendProblemAPI(RetrieveAPIView):
-    """
-    Recommend Problem api for user,
-    """
-
-    queryset = Problem.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    serializer_class = ProblemDetailSerializer
-    filter_backends = [
-        NotSolvedProblemsFilter,
-        MinLevelProblemFilter,
-        LessSubmittedProblemFilter,
-        LastestProblemFilter,
-    ]
-
-    def get(self, request):
-
+    @action(
+        methods=["get"],
+        detail=False,
+        url_path="recommendation",
+        url_name="recommendation",
+        filter_backends=[
+            NotSolvedProblemsFilter,
+            MinLevelProblemFilter,
+            LessSubmittedProblemFilter,
+            LastestProblemFilter,
+        ],
+    )
+    def recommendation(self, request):
+        """recommendate problem to user"""
         queryset = self.filter_queryset(self.get_queryset())
-
         if queryset.exists():
             serializer = self.get_serializer(queryset.first())
             return Response(serializer.data)
@@ -252,3 +157,80 @@ class RecommendProblemAPI(RetrieveAPIView):
             {"result": "no problems to recommend."},
             status=HTTP_204_NO_CONTENT,
         )
+
+    @action(
+        methods=["get"],
+        detail=True,
+        url_path="submission",
+        url_name="submission",
+        permission_classes=[IsAuthenticated],
+        serializer_class=SubmissionSerializer,
+    )
+    def submission(self, request, pk):
+        try:
+            obj = Submission.objects.find_submission_on_problem(
+                problem_id=pk, user=request.user
+            )
+        except Submission.DoesNotExist:
+            return Response(status=HTTP_204_NO_CONTENT)
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(
+        methods=["get", "post"],
+        detail=True,
+        url_path=r"solutions",
+        url_name="solutions",
+        serializer_class=SolutionSerializer,
+    )
+    def solutions_list_post(self, request, pk):
+        def _list(self, request, pk):
+            try:
+                obj = Solution.objects.find_submitted_solutions(pk, self.request.user)
+            except Solution.DoesNotExist:
+                return Response(status=HTTP_204_NO_CONTENT)
+
+            return Response(
+                self.get_serializer(obj, many=True).data,
+            )
+
+        def _post(self, request, pk):
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+
+            solution_id = serializer.data["id"]
+
+            ret = check_answer_and_update_score.delay(pk, solution_id)
+
+            return Response(
+                {
+                    "task": {
+                        "href": f"problems/{pk}/solutions/{solution_id}",
+                    }
+                },
+                status=HTTP_202_ACCEPTED,
+            )
+
+        method = _list if request.method in SAFE_METHODS else _post
+        return method(self, request, pk)
+
+    @action(
+        methods=["get"],
+        detail=True,
+        url_path=r"solutions/(?P<solution_id>[^/.]+)",
+        url_name="solutions-detail",
+        serializer_class=SolutionSerializer,
+        permission_classes=[
+            IsAuthenticated,
+        ],
+    )
+    def solutions_id(self, request, pk, solution_id):
+        try:
+            obj = Solution.objects.find_submitted_solutions(pk, self.request.user)
+        except Solution.DoesNotExist:
+            return Response(status=HTTP_204_NO_CONTENT)
+
+        obj = obj.get(pk=solution_id)
+        return Response(self.serializer_class(obj).data)

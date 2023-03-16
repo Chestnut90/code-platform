@@ -29,7 +29,7 @@ class DelayQuerySet(QuerySet):
         return super().filter(*args, **kwargs)
 
 
-class DelayManager(BaseManager.from_queryset(QuerySet)):
+class DelayManager(models.Manager):
     def get(self, *args, **kwargs):
         """override method, to force time dealy"""
         # print("delay manager get called")
