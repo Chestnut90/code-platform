@@ -1,6 +1,9 @@
 import random
 
 from django.core.cache import cache
+from django.conf import settings
+
+TTL = settings.REDIS_CACHE_TTL
 
 
 def get(key):
@@ -8,6 +11,7 @@ def get(key):
 
 
 def set(key, value, timeout=None):
+    timeout = timeout if timeout else TTL
     cache.set(key, value, timeout)
 
 

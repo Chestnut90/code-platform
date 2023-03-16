@@ -1,11 +1,36 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+from config import redis  # custom redis interface
+
 from .models_abstract import (
+    DelayManager,
     AutoTimeTrackingModelBase,
     AnswerModelBase,
     ScoreModelBase,
+    _T,
+    _QS,
 )
+
+
+SEPARATOR = ","
+
+# use .format()
+PROBLEM_KEY = "problems.{}"
+
+
+def update_problem_cache(obj):
+    """update cache if object is related model with problem"""
+    if not hasattr(obj, "problem"):
+        return
+
+    pk = obj.problem.pk
+    key = PROBLEM_KEY.format(pk)
+
+    hit = redis.get(key)
+    if hit:
+        # update cache
+        redis.set(key, obj.problem)
 
 
 class Answer(AnswerModelBase):
@@ -13,6 +38,12 @@ class Answer(AnswerModelBase):
 
     def __str__(self) -> str:
         return f"answer of {self.problem}" if hasattr(self, "problem") else "deleted"
+
+    def save(
+        self, force_insert=False, force_update=False, using=None, update_fields=None
+    ):
+        super().save(force_insert, force_update, using, update_fields)
+        update_problem_cache(self)
 
 
 class Commentary(AutoTimeTrackingModelBase):
@@ -22,6 +53,12 @@ class Commentary(AutoTimeTrackingModelBase):
 
     def __str__(self) -> str:
         return f"comment of {self.problem}" if hasattr(self, "problem") else "deleted"
+
+    def save(
+        self, force_insert=False, force_update=False, using=None, update_fields=None
+    ):
+        super().save(force_insert, force_update, using, update_fields)
+        update_problem_cache(self)
 
 
 class Category(AutoTimeTrackingModelBase):
@@ -36,31 +73,55 @@ class Category(AutoTimeTrackingModelBase):
         return f"{self.name}"
 
 
-class ProblemManager(models.Manager):
+class ProblemManager(DelayManager):
     """
     Problem model manager
     do queries.
     """
 
-    SEPARATOR = ","
+    def get_cached_queryset(self, levels=str, categories=str):
+        """cached"""
 
-    def _list_queries(self, field_name, values: list) -> models.Q:
-        query = models.Q()
-        for value in values:
-            query |= models.Q(**{field_name: value})
-        return query
+        def _list_queries(field_name, values: list) -> models.Q:
+            query = models.Q()
+            for value in values:
+                query |= models.Q(**{field_name: value})
+            return query
 
-    def get_queriedset(self, levels=None, categories=None):
+        assert isinstance(levels, str) or isinstance(
+            categories, str
+        ), "pass comma separated value"
 
-        queryset = self.all()
-        query = models.Q()
-        if levels:
-            query &= self._list_queries("level", levels.split(self.SEPARATOR))
-        if categories:
-            query &= self._list_queries("category", categories.split(self.SEPARATOR))
-        # TODO : query with rate of solved
+        # TODO : unique key, sort levels value when not sorted.
+        key = PROBLEM_KEY.format(f"levels={levels}.categories={categories}")
 
-        return queryset.filter(query)
+        hit = redis.get(key)
+        if not hit:
+            # TODO : error fix
+            query = models.Q()
+            if levels:
+                query &= models.Q(_list_queries("level", levels.split(SEPARATOR)))
+            if categories:
+                query &= _list_queries("category", categories.split(SEPARATOR))
+            # TODO : query with rate of solved
+
+            hit = self.filter(query)
+            redis.set(key, hit)
+
+        return hit
+
+    def get_cached_problem(self, id):
+        """
+        get problem using cache, 'look aside'
+        """
+        key = PROBLEM_KEY.format(id)
+        hit = redis.get(key)
+
+        if not hit:
+            hit = self.get(pk=id)
+            redis.set(key, hit)
+
+        return hit
 
     def check_answer(self, problem_id, answer):
         """
@@ -125,6 +186,19 @@ class Problem(AutoTimeTrackingModelBase):
     def __str__(self) -> str:
         return f"{self.name}"
 
+    def save(
+        self, force_insert=False, force_update=False, using=None, update_fields=None
+    ) -> None:
+        super().save(force_insert, force_update, using, update_fields)
+
+        pk = self.pk
+        key = PROBLEM_KEY.format(pk)
+
+        hit = redis.get(key)
+        if hit:
+            # update cache
+            redis.set(key, self)
+
 
 class SubmissionManager(models.Manager):
     def find_submission_on_problem(self, problem_id, user):
@@ -178,13 +252,12 @@ class SolutionManager(models.Manager):
         find solutions of problem which user submitted.
         ordered by lastest submitted solutions.
         """
-        queryset = self.all()
         try:
             submission = Submission.objects.find_submission_on_problem(problem_id, user)
         except Submission.DoesNotExist:
             raise Solution.DoesNotExist
 
-        return queryset.filter(submission=submission).order_by("-created_at")
+        return self.filter(submission=submission).order_by("-created_at")
 
 
 class Solution(

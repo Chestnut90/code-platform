@@ -58,10 +58,8 @@ class ProblemsAPI(ListCreateAPIView):
     queryset = Problem.objects.all()
     serializer_class = ProblemListSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    # filter_backends = [NotSolvedProblemsFilter]
-    pagination_class = (
-        PageNumberPagination  # TODO : receive page and page_size, customize
-    )
+    # TODO : receive page and page_size, customize
+    pagination_class = PageNumberPagination
 
     def get_serializer_class(self):
         """
@@ -77,9 +75,9 @@ class ProblemsAPI(ListCreateAPIView):
         """
         queryset from filtered by url parameters, levels and categories
         """
-        levels = self.request.query_params.get("levels", None)
-        categories = self.request.query_params.get("categories", None)
-        return Problem.objects.get_queriedset(levels=levels, categories=categories)
+        levels = self.request.query_params.get("levels", "")
+        categories = self.request.query_params.get("categories", "")
+        return Problem.objects.get_cached_queryset(levels=levels, categories=categories)
 
     @swagger_auto_schema(
         operation_description="GET problems with query parameters",
@@ -115,9 +113,19 @@ class ProblemAPI(RetrieveUpdateDestroyAPIView):
     Problem API
     """
 
-    queryset = Problem.objects.all()
+    # queryset = Problem.objects
     serializer_class = None  # use get_serializer_class instead
     permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+
+    def get_object(self):
+        id = self.kwargs["pk"]
+        try:
+            obj = Problem.objects.get_cached_problem(id)
+        except Problem.DoesNotExist:
+            raise NotFound
+
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def get_serializer_class(self):
 

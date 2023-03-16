@@ -63,9 +63,15 @@ class ProblemsAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         json = response.json()
+        print("json : ", json)
         problems = Problem.objects.filter(
             (Q(level=1) | Q(level=2)) & Q(category=1),
         )
+        for problem in problems:
+            print(
+                "problem. level={}, category={}".format(problem.level, problem.category)
+            )
+
         self.assertEqual(json["count"], problems.count())
 
         # queries levels with 1, 2 and categories with id 1, 2

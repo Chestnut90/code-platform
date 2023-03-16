@@ -107,6 +107,49 @@ def create_n_problem(n, users, categories):
         create_problem(**problem)
 
 
+class AnswerModelTestCase(TestCase):
+    def setUp(self) -> None:
+
+        user = User.objects.create(username="a")
+
+        category = Category.objects.create(name="bfs")
+        answer = Answer.objects.create(**{"answer": "answer"})
+        commentary = Commentary.objects.create(**{"comment": "comment"})
+
+        problem = Problem.objects.create(
+            **{
+                "name": "name",
+                "level": 1,
+                "category": category,
+                "answer": answer,
+                "commentary": commentary,
+                "description": "description",
+                "owner": user,
+            }
+        )
+
+    def test_cache_updated_after_answer_change(self):
+
+        # add key on redis
+        problem = Problem.objects.get(pk=1)
+
+        from config import redis
+
+        key = "problem.{}".format(problem.id)
+        redis.set(key, problem)
+
+        self.assertEqual(problem, redis.get(key))
+
+        # change answer
+        new_answer = "new_answer"
+        answer = problem.answer
+        answer.answer = new_answer
+        answer.save()
+
+        cached_problem = redis.get(key)
+        self.assertEqual(cached_problem.answer.answer, new_answer)
+
+
 class ProblemModelTestCase(TestCase):
     """
     create problem-answer-commentary
