@@ -32,11 +32,38 @@ from .filters import (
 from .tasks import check_answer_and_update_score
 
 
+id_parameter = openapi.Parameter(
+    "id",
+    openapi.IN_PATH,
+    description="id of problem",
+    type=openapi.TYPE_INTEGER,
+)
+level_parameter = openapi.Parameter(
+    name="levels",
+    in_=openapi.IN_QUERY,
+    description="Level query parameters with integer and comma separated. ex) 'levels=1,2' for level 1 and 2",
+    type=openapi.TYPE_STRING,
+)
+category_parameter = openapi.Parameter(
+    name="categories",
+    in_=openapi.IN_QUERY,
+    description="Category query parameters with integer and comma separated. ex) 'categories=1,2' for category 1 and 2",
+    type=openapi.TYPE_STRING,
+)
+not_found_response = openapi.Response("not found")
+bad_request_response = openapi.Response("bad request")
+
+SolutionPostSuccessSchema = openapi.Schema(
+    type=openapi.TYPE_OBJECT, properties={"task": ""}
+)
+
+
 class ProblemViewSet(ModelViewSet):
     """Problem View, all view"""
 
     # queryset = Problem.objects
     permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+    serializer_class = ProblemListSerializer
     # TODO : receive page and page_size, customize
     pagination_class = PageNumberPagination
 
@@ -82,32 +109,92 @@ class ProblemViewSet(ModelViewSet):
 
     @swagger_auto_schema(
         operation_description="GET problems with query parameters",
-        manual_parameters=[
-            openapi.Parameter(
-                name="levels",
-                in_=openapi.IN_QUERY,
-                description="Problems levels want to get, ex) 'levels=1,2' for level 1 and 2",
-                type=openapi.TYPE_STRING,
+        manual_parameters=[level_parameter, category_parameter],
+        paginator=PageNumberPagination,
+        responses={
+            # TODO : paginated response..
+            "200": openapi.Response(
+                "success response, paginated", schema=ProblemListSerializer(many=True)
             ),
-            openapi.Parameter(
-                name="categories",
-                in_=openapi.IN_QUERY,
-                description="Problems categories want to get, ex) 'categories=1,2' for category 1 and 2",
-                type=openapi.TYPE_STRING,
-            ),
-        ],
-        responses={"404": "Not Found"},
+            "404": not_found_response,
+        },
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="GET problem with given id",
+        manual_parameters=[id_parameter],
+        responses={"404": not_found_response},
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
-        operation_description="Add problem",
+        operation_description="Add problem api. Only authenticated user can add problem. ",
         request_body=ProblemCreateUpdateSerializer,
+        responses={
+            "400": openapi.Response(
+                "bad request", schema=ProblemCreateUpdateSerializer(data=None)
+            )
+        },
     )
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
+    @swagger_auto_schema(
+        operation_description="""
+        API to update problem with partial data.\n
+        Use this api when update problem, answer, comment.
+        """,
+        manual_parameters=[id_parameter],
+        request_body=ProblemCreateUpdateSerializer,
+        responses={
+            "200": openapi.Response(
+                "success response", schema=ProblemCreateUpdateSerializer()
+            )
+        },
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="""
+        API to update problem with whole data.\n
+        User this api when update problem, answer, comment.
+        """,
+        manual_parameters=[id_parameter],
+        request_body=ProblemCreateUpdateSerializer,
+        responses={
+            "404": not_found_response,
+            "400": bad_request_response,
+        },
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="""API to delete problem match with id.""",
+        manual_parameters=[id_parameter],
+        responses={
+            "204": openapi.Response("success response"),
+            "404": not_found_response,
+        },
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="""
+        API to check answer and commentary of problem with id.
+        Authenticated and Solved user can get response.
+        """,
+        manual_parameters=[id_parameter],
+        responses={
+            "403": openapi.Response("failed response, request user not solve problem."),
+            "404": not_found_response,
+        },
+    )
     @action(
         methods=["get"],
         detail=True,
@@ -128,12 +215,38 @@ class ProblemViewSet(ModelViewSet):
         serializer = self.get_serializer(obj)
         return Response(serializer.data)
 
-    @action(methods=["get"], detail=False)
+    @swagger_auto_schema(
+        operation_description="Get all categories data.",
+        paginator=None,
+        responses={
+            "200": openapi.Response("success response", CategorySerializer(many=True)),
+        },
+    )
+    @action(
+        methods=["get"],
+        detail=False,
+        pagination_class=None,
+    )
     def categories(self, request):
         """categories of problem"""
         serializer = CategorySerializer(Category.objects.all(), many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        operation_description="""
+        Recommend single problem.\n
+        given problem is follow order in below.\n
+        1. lowest level.\n
+        2. less subbmited.\n
+        3. latest added problem.\n
+        and not solved problem.""",
+        responses={
+            "200": openapi.Response(
+                "success description", schema=ProblemListSerializer()
+            ),
+            "204": openapi.Response("success but, no problem to recommend"),
+        },
+    )
     @action(
         methods=["get"],
         detail=False,
@@ -145,6 +258,7 @@ class ProblemViewSet(ModelViewSet):
             LessSubmittedProblemFilter,
             LastestProblemFilter,
         ],
+        pagination_class=None,
     )
     def recommendation(self, request):
         """recommendate problem to user"""
@@ -153,11 +267,15 @@ class ProblemViewSet(ModelViewSet):
             serializer = self.get_serializer(queryset.first())
             return Response(serializer.data)
 
-        return Response(
-            {"result": "no problems to recommend."},
-            status=HTTP_204_NO_CONTENT,
-        )
+        return Response(status=HTTP_204_NO_CONTENT)
 
+    @swagger_auto_schema(
+        operation_description="Brief information of submitted solution to problem by user",
+        manual_parameters=[id_parameter],
+        responses={
+            "204": openapi.Response("success, but user not submit any solution.")
+        },
+    )
     @action(
         methods=["get"],
         detail=True,
@@ -176,6 +294,30 @@ class ProblemViewSet(ModelViewSet):
 
         return Response(self.get_serializer(obj).data)
 
+    @swagger_auto_schema(
+        method="get",
+        operation_description="""API to list-up solutions which user submit to problem.""",
+        manual_parameters=[id_parameter],
+        responses={
+            "200": openapi.Response(
+                "success response", schema=SolutionSerializer(many=True)
+            ),
+            "204": openapi.Response("success, but use not submit any solution."),
+        },
+    )
+    @swagger_auto_schema(
+        method="post",
+        operation_description="""API to submit solutions.""",
+        manual_parameters=[id_parameter],
+        request_body=SolutionSerializer,
+        responses={
+            "202": openapi.Response(
+                "success response",  # TODO : dict to schema
+            ),
+            "400": bad_request_response,
+            "404": openapi.Response("failed, no problem matched."),
+        },
+    )
     @action(
         methods=["get", "post"],
         detail=True,
@@ -216,6 +358,22 @@ class ProblemViewSet(ModelViewSet):
         method = _list if request.method in SAFE_METHODS else _post
         return method(self, request, pk)
 
+    @swagger_auto_schema(
+        operation_description="""""",
+        manual_parameters=[
+            id_parameter,
+            openapi.Parameter(
+                "solution_id",
+                openapi.IN_PATH,
+                description="id of solution",
+                type=openapi.TYPE_INTEGER,
+            ),
+        ],
+        responses={
+            "200": openapi.Response("success response", schema=SolutionSerializer()),
+            "404": not_found_response,
+        },
+    )
     @action(
         methods=["get"],
         detail=True,

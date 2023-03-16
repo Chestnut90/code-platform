@@ -77,6 +77,7 @@ class ProblemListSerializer(ProblemSerializerBase):
             "solved_count",
             # TODO : user solved
         )
+        read_only_fields = ("name", "level")
 
 
 class ProblemCreateUpdateSerializer(ModelSerializer):
@@ -86,13 +87,17 @@ class ProblemCreateUpdateSerializer(ModelSerializer):
 
     owner = serializers.StringRelatedField(read_only=True)
     # TODO : customize, category pk error message
-    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    category = serializers.PrimaryKeyRelatedField(
+        label="primary key of category table",
+        queryset=Category.objects.all(),
+    )
     commentary = CommentarySerializer()
     answer = AnswerSerializer()
 
     class Meta:
         model = Problem
         fields = "__all__"
+        extra_kwargs = {"level": {"label": "must be in [1, 2, 3, 4, 5]"}}
 
     def validate_level(self, value):
         _range = range(1, 6)
@@ -134,6 +139,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Submission
         fields = "__all__"
+        read_only_fields = ("user", "problem")
 
 
 class SolutionSerializer(serializers.ModelSerializer):
