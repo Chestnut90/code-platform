@@ -1,5 +1,7 @@
 from time import sleep
 
+from django.conf import settings
+
 from celery import shared_task
 
 from .models import Problem, Solution
@@ -18,9 +20,9 @@ def check_answer_and_update_score(problem_id, solution_id):
     solution.state = Solution.CHEKING
     solution.save()
 
-    sleep(20)  # condition.
+    sleep(settings.DEBUG_PROBLEM_CHECK_DELAY)  # condition.
 
-    problem = Problem.objects.get(pk=problem_id)
+    problem = Problem.objects.get_cached_problem(problem_id)
 
     # compare answer with given answer
     score = 100 if solution.answer == problem.answer.answer else 0
