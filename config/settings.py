@@ -159,3 +159,9 @@ CACHES = {
         },
     }
 }
+
+# For debug,
+DEBUG_PROBLEM_QUERY_DELAY = 1  # second
+DEBUG_PROBLEM_CHECK_DELAY = 10  # second
+DEBUG_REDIS_PROBLEM_TTL = 1 * 60 * 60  # seconds
+DEBUG_REDIS_QUERY_TTL = 1 * 60 * 60  # seconds
