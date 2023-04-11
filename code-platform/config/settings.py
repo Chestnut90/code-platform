@@ -42,6 +42,7 @@ _DEFAULT_APPS = [
 _THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_yasg",
+    "debug_toolbar",
 ]
 
 _CUSTOM_APPS = [
@@ -58,6 +59,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -165,3 +167,10 @@ DEBUG_PROBLEM_QUERY_DELAY = 1  # second
 DEBUG_PROBLEM_CHECK_DELAY = 10  # second
 DEBUG_REDIS_PROBLEM_TTL = 1 * 60 * 60  # seconds
 DEBUG_REDIS_QUERY_TTL = 1 * 60 * 60  # seconds
+
+# for debug_toolbar
+INTERNAL_IPS = [
+    # ...
+    "127.0.0.1",
+    # ...
+]
