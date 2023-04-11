@@ -43,6 +43,7 @@ _THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_yasg",
     "debug_toolbar",
+    "django_extensions",
 ]
 
 _CUSTOM_APPS = [
@@ -137,7 +138,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # rest framework
 REST_FRAMEWORK = {
-    "PAGE_SIZE": 2,
+    "PAGE_SIZE": 5,
 }
 
 # Celery Configuration Options

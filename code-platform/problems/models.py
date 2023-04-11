@@ -1,36 +1,19 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-from config import redis  # custom redis interface
 
 from .models_abstract import (
-    DelayManager,
     AutoTimeTrackingModelBase,
     AnswerModelBase,
     ScoreModelBase,
-    _T,
-    _QS,
 )
 
-
-SEPARATOR = ","
-
-# use .format()
-PROBLEM_KEY = "problems.{}"
-
-
-def update_problem_cache(obj):
-    """update cache if object is related model with problem"""
-    if not hasattr(obj, "problem"):
-        return
-
-    pk = obj.problem.pk
-    key = PROBLEM_KEY.format(pk)
-
-    hit = redis.get(key)
-    if hit:
-        # update cache
-        redis.set(key, obj.problem)
+from .managers import (
+    ProblemManager,
+    SolutionManager,
+    SubmissionManager,
+    update_problem_cache,
+)
 
 
 class Answer(AnswerModelBase):
@@ -71,66 +54,6 @@ class Category(AutoTimeTrackingModelBase):
 
     def __str__(self) -> str:
         return f"{self.name}"
-
-
-class ProblemManager(DelayManager):
-    """
-    Problem model manager
-    do queries.
-    """
-
-    def get_cached_queryset(self, levels=str, categories=str):
-        """cached"""
-
-        def _list_queries(field_name, values: list) -> models.Q:
-            query = models.Q()
-            for value in values:
-                query |= models.Q(**{field_name: value})
-            return query
-
-        assert isinstance(levels, str) or isinstance(
-            categories, str
-        ), "pass comma separated value"
-
-        # TODO : unique key, sort levels value when not sorted.
-        key = PROBLEM_KEY.format(f"levels={levels}.categories={categories}")
-
-        hit = redis.get(key)
-        if not hit:
-            # TODO : error fix
-            query = models.Q()
-            if levels:
-                query &= models.Q(_list_queries("level", levels.split(SEPARATOR)))
-            if categories:
-                query &= _list_queries("category", categories.split(SEPARATOR))
-            # TODO : query with rate of solved
-
-            hit = self.filter(query)
-            redis.set(key, hit)
-
-        return hit
-
-    def get_cached_problem(self, id):
-        """
-        get problem using cache, 'look aside'
-        """
-        key = PROBLEM_KEY.format(id)
-        hit = redis.get(key)
-
-        if not hit:
-            hit = self.get(pk=id)
-            redis.set(key, hit)
-
-        return hit
-
-    def check_answer(self, problem_id, answer):
-        """
-        check problem answer with given answer.\n
-        can raise Problem.DoesNotExist
-        """
-        problem = self.get(pk=problem_id)
-
-        return 100 if problem.answer.answer == answer else 0
 
 
 class Problem(AutoTimeTrackingModelBase):
@@ -178,10 +101,10 @@ class Problem(AutoTimeTrackingModelBase):
     )
 
     def submitted_count(self):
-        return self.submissions.all().count()
+        return self.submissions.count()
 
     def solved_count(self):
-        return self.submissions.filter(score=100).count()
+        return len([1 for i in list(self.submissions.all()) if i.score == 100])
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -190,23 +113,7 @@ class Problem(AutoTimeTrackingModelBase):
         self, force_insert=False, force_update=False, using=None, update_fields=None
     ) -> None:
         super().save(force_insert, force_update, using, update_fields)
-
-        pk = self.pk
-        key = PROBLEM_KEY.format(pk)
-
-        hit = redis.get(key)
-        if hit:
-            # update cache
-            redis.set(key, self)
-
-
-class SubmissionManager(models.Manager):
-    def find_submission_on_problem(self, problem_id, user):
-        """
-        find submission instance with problem_id and user object
-        can raise Submission.DoesNotFound
-        """
-        return self.get(models.Q(problem=problem_id) & models.Q(user=user.id))
+        update_problem_cache(self)
 
 
 class Submission(
@@ -243,21 +150,7 @@ class Submission(
     )
 
     def __str__(self) -> str:
-        return f"{self.user}'s submission to '{self.problem}'"
-
-
-class SolutionManager(models.Manager):
-    def find_submitted_solutions(self, problem_id, user):
-        """
-        find solutions of problem which user submitted.
-        ordered by lastest submitted solutions.
-        """
-        try:
-            submission = Submission.objects.find_submission_on_problem(problem_id, user)
-        except Submission.DoesNotExist:
-            raise Solution.DoesNotExist
-
-        return self.filter(submission=submission).order_by("-created_at")
+        return f"{self.user_id} to {self.problem_id} submission {self.score}"
 
 
 class Solution(
