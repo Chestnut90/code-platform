@@ -16,6 +16,7 @@ Chestnut (cowzon90@gmail.com)
 - __django__ and __django-rest-framework__
 - __redis__ as cache
 - __celery__(message queue) with __rabbitmq__ (broker)
+- __postgresql15__ with docker
 </br>
 </br>
 
@@ -36,12 +37,34 @@ Docker를 통해 Redis 캐시 및 rabbitmq 브로커 환경 만들기.
 ```
 # redis
 docker pull redis # latest version 
-docker run -d -p 6379:6379 --name [name] redis
+docker run \
+        --name [name] \
+        -d \
+        -p 6379:6379 \
+        redis
 
 # rabbitmq
 docker pull rabbitmq # latest version
-docker run -d -p 15672:15672 -p 5672:5672 --name [name] rabbitmq
+docker run \
+        -d \
+        --name [name] \
+        -p 15672:15672 \
+        -p 5672:5672 \
+        rabbitmq
 docker exec rabbitmq rabbitmq-plugins enable rabbitmq_management # access ui, http://localhost:15672
+
+# postgresql
+docker pull postgres # lastest, 15
+docker run \
+        -d \
+        --name [name] \
+        -e POSTGRES_USER=code_platform \
+        -e POSTGRES_DB=code_platform \
+        -e POSTGRES_PASSWORD=code_platform \
+        -p 32771:5432 \
+        -v $(pwd)/db2:/var/lib/postgresql/data \
+        postgres
+
 
 ```
 
