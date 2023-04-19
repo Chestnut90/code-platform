@@ -1,7 +1,3 @@
-## customs, mounted volume on docker db
-db/
-
-
 # application migration file
 */migrations
 

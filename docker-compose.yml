@@ -1,0 +1,66 @@
+version: '3.0'
+
+# https://github.com/vishnubob/wait-for-it/blob/master/wait-for-it.sh
+
+volumes:
+  code_platform_postgres_dev:
+
+
+services:
+  postgres:
+    container_name: code_platform_postgres
+    image: postgres:latest
+    volumes:
+      - code_platform_postgres_dev:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+      # django에서 권장하는 환경 세팅하기.
+
+  redis:
+    container_name: code_platform_redis
+    image: redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+
+  rabbitmq:
+    container_name: code_platform_rabbitmq
+    image: rabbitmq:3.11.13-management-alpine
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_USER}
+    ports:
+      - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
+      - "${RABBITMQ_UI_PORT}:${RABBITMQ_UI_PORT}" # ui
+
+  django:
+    container_name: code_platform_django
+    build: . # current Dockerfile
+    command: >
+      bash -c "python manage.py makemigrations &&
+       python manage.py migrate && 
+       python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./code-platform:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+
+  celery:
+    container_name: code_platform_celery
+    build: . # TODO 
+    env_file:
+      - .env
+    volumes:
+      - ./code-platform:/app
+    command: >
+      bash -c "celery -A config worker -l INFO"
+    depends_on:
+      - django
+      - rabbitmq

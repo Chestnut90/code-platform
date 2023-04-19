@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
-
+from os import environ
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-*u0lx)n$xaulx%a-ez22+bva+_*-gcmszm#y7p-mt#qpl8is7k"
+SECRET_KEY = environ["SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -90,11 +90,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "code_platform",
-        "USER": "code_platform",
-        "PASSWORD": "code_platform",
-        "HOST": "localhost",
-        "PORT": "32770",
+        "NAME": environ["POSTGRES_NAME"],
+        "USER": environ["POSTGRES_USER"],
+        "PASSWORD": environ["POSTGRES_PASSWORD"],
+        "HOST": environ["POSTGRES_HOST"],
+        "PORT": environ["POSTGRES_PORT"],
     },
 }
 
@@ -149,7 +149,7 @@ REST_FRAMEWORK = {
 CELERY_TIMEZONE = "Asia/Seoul"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
-CELERY_BROKER_URL = "amqp://guest:guest@localhost:5672"
+CELERY_BROKER_URL = f"amqp://{environ['RABBITMQ_USER']}:{environ['RABBITMQ_PASSWORD']}@code_platform_rabbitmq:5672"
 CELERY_TASK_SERIALIZER = "json"
 # CELERY_RESULT_SERIALIZER = 'json'
 # CELERY_RESULT_BACKEND = "redis://localhost:6379"
@@ -159,7 +159,7 @@ REDIS_CACHE_TTL = 60 * 5  # default 5 min
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",  # change to just redis
-        "LOCATION": "redis://localhost:6379",
+        "LOCATION": "redis://code_platform_redis:6379",
         "TIMEOUT": REDIS_CACHE_TTL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
@@ -169,7 +169,7 @@ CACHES = {
 
 # For debug,
 DEBUG_PROBLEM_QUERY_DELAY = 1  # second
-DEBUG_PROBLEM_CHECK_DELAY = 10  # second
+DEBUG_PROBLEM_CHECK_DELAY = 2  # second
 DEBUG_REDIS_PROBLEM_TTL = 1 * 60 * 60  # seconds
 DEBUG_REDIS_QUERY_TTL = 1 * 60 * 60  # seconds
 
@@ -177,5 +177,7 @@ DEBUG_REDIS_QUERY_TTL = 1 * 60 * 60  # seconds
 INTERNAL_IPS = [
     # ...
     "127.0.0.1",
+    "0.0.0.0",
+    "localhost",
     # ...
 ]
