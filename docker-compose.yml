@@ -1,7 +1,5 @@
 version: '3.0'
 
-# https://github.com/vishnubob/wait-for-it/blob/master/wait-for-it.sh
-
 volumes:
   code_platform_postgres_dev:
 
@@ -35,17 +33,28 @@ services:
       - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
       - "${RABBITMQ_UI_PORT}:${RABBITMQ_UI_PORT}" # ui
 
+  nginx:
+    container_name: code_platform_nginx
+    image: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./code-platform.conf:/etc/nginx/conf.d/code-platform.conf
+      - ./static_files/files/static:/staticfiles
+    depends_on:
+      - django
+
   django:
     container_name: code_platform_django
     build: . # current Dockerfile
     command: >
       bash -c "python manage.py makemigrations &&
        python manage.py migrate && 
-       python manage.py runserver 0.0.0.0:8000"
+       gunicorn config.wsgi:application --bind 0.0.0.0:8000"
     volumes:
       - ./code-platform:/app
-    ports:
-      - "8000:8000"
+    expose:
+      - 8000
     env_file:
       - .env
     depends_on:

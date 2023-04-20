@@ -1,3 +1,6 @@
+# static_files
+static_files/
+
 # application migration file
 */migrations
 
